@@ -21,7 +21,6 @@ const (
 	fileIndirectBlockPrefetchPriority int           = -100
 	dirEntryPrefetchPriority          int           = -200
 	updatePointerPrefetchPriority     int           = lowestTriggerPrefetchPriority
-	defaultPrefetchPriority           int           = -1024
 	prefetchTimeout                   time.Duration = 24 * time.Hour
 	maxNumPrefetches                  int           = 10000
 )
