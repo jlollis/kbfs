@@ -540,10 +540,13 @@ func (md *MDServerRemote) get(ctx context.Context, arg keybase1.GetMetadataArg) 
 			return tlf.ID{}, nil, err
 		}
 		rmdses[i] = rmds
-		err = diskMDCache.Stage(
-			ctx, tlfID, rmds.MD.RevisionNumber(), block.Block, ver, timestamp)
-		if err != nil {
-			return tlf.ID{}, nil, err
+		if diskMDCache != nil && rmds.MD.MergedStatus() == kbfsmd.Merged {
+			err = diskMDCache.Stage(
+				ctx, tlfID, rmds.MD.RevisionNumber(), block.Block, ver,
+				timestamp)
+			if err != nil {
+				return tlf.ID{}, nil, err
+			}
 		}
 	}
 	return tlfID, rmdses, nil
@@ -740,7 +743,29 @@ func (md *MDServerRemote) Put(ctx context.Context, rmds *RootMetadataSigned,
 		}
 	}
 
-	return md.getClient().PutMetadata(ctx, arg)
+	err = md.getClient().PutMetadata(ctx, arg)
+	if err != nil {
+		return err
+	}
+
+	// Stage the new MD if needed.
+	diskMDCache := md.config.DiskMDCache()
+	if diskMDCache != nil && rmds.MD.MergedStatus() == kbfsmd.Merged {
+		// Guess the server timestamp by using the local offset.
+		// TODO: the server should return this, and/or we should fetch
+		// it explicitly.
+		revTime := md.config.Clock().Now()
+		if offset, ok := md.OffsetFromServerTime(); ok {
+			revTime = revTime.Add(-offset)
+		}
+		err = diskMDCache.Stage(
+			ctx, rmds.MD.TlfID(), rmds.MD.RevisionNumber(), rmdsBytes,
+			rmds.Version(), revTime)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Lock implements the MDServer interface for MDServerRemote.
